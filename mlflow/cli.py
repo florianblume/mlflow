@@ -173,6 +173,7 @@ def run(
             experiment_id=experiment_id,
             parameters=param_dict,
             docker_args=args_dict,
+            singularity_args=args_dict,
             backend=backend,
             backend_config=backend_config,
             use_conda=(not no_conda),

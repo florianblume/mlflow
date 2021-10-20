@@ -10,7 +10,7 @@ from spython.utils import check_install
 from spython.main import Client
 
 from mlflow import tracking
-from mlflow.projects.utils import get_databricks_env_vars, get_run_env_vars, get_local_uri_or_none
+from mlflow.projects.utils import get_databricks_env_vars, get_run_env_vars, get_local_uri_or_none, convert_container_args_to_list
 from mlflow.exceptions import ExecutionException
 from mlflow.projects.utils import MLFLOW_CONTAINER_WORKDIR_PATH
 from mlflow.tracking.context.git_context import _get_git_commit
@@ -62,6 +62,8 @@ def build_singularity_image(work_dir, repository_uri, base_image, run_id):
         bootstrap = "library"
     elif base_image.startswith('shub://'):
         bootstrap = "shub"
+    elif base_image.startswith('docker://'):
+        bootstrap = "docker"
     else:
         recipe_image = os.path.join(work_dir, base_image)
         if not os.path.exists(recipe_image):
@@ -138,8 +140,9 @@ def get_singularity_tracking_cmd_and_envs(tracking_uri):
 
 
 def get_singularity_command(image, active_run, singularity_args=None, volumes=None, user_env_vars=None):
-
-    cmd = Client._init_command("exec", singularity_args)
+    cmd = []
+    cmd = Client._init_command("exec", cmd)
+    cmd = convert_container_args_to_list(cmd, singularity_args)
     if volumes:
         cmd += Client._generate_bind_list(volumes)
 

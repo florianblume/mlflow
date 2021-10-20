@@ -30,6 +30,7 @@ from mlflow.projects.utils import (
     get_run_env_vars,
     get_databricks_env_vars,
     get_entry_point_command,
+    convert_container_args_to_list,
     MLFLOW_LOCAL_BACKEND_RUN_ID_CONFIG,
     MLFLOW_CONTAINER_WORKDIR_PATH,
     PROJECT_USE_CONDA,
@@ -102,14 +103,18 @@ class LocalBackend(AbstractBackend):
             tracking.MlflowClient().set_tag(active_run.info.run_id, MLFLOW_PROJECT_ENV, "singularity")
             validate_singularity_env(project)
             validate_singularity_installation()
+            """
+            We cannot build on the cluster since we are not root
+
             image = build_singularity_image(
                 work_dir=work_dir,
                 repository_uri=project.name,
                 base_image=project.singularity_env.get("image"),
                 run_id=active_run.info.run_id,
             )
+            """
             command_args += get_singularity_command(
-                image=image,
+                image=project.singularity_env.get("image"),
                 active_run=active_run,
                 singularity_args=singularity_args,
                 volumes=project.singularity_env.get("volumes"),
@@ -245,20 +250,7 @@ def _get_docker_command(image, active_run, docker_args=None, volumes=None, user_
     cmd = [docker_path, "run", "--rm"]
 
     # TODO: this could be a shared function for containers
-    if docker_args:
-        for name, value in docker_args.items():
-            # Passed just the name as boolean flag
-            if isinstance(value, bool) and value:
-                if len(name) == 1:
-                    cmd += ["-" + name]
-                else:
-                    cmd += ["--" + name]
-            else:
-                # Passed name=value
-                if len(name) == 1:
-                    cmd += ["-" + name, value]
-                else:
-                    cmd += ["--" + name, value]
+    cmd = convert_container_args_to_list(cmd, docker_args)
 
     env_vars = get_run_env_vars(
         run_id=active_run.info.run_id, experiment_id=active_run.info.experiment_id

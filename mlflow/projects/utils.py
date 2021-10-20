@@ -344,3 +344,20 @@ def get_databricks_env_vars(tracking_uri):
     if config.ignore_tls_verification:
         env_vars["DATABRICKS_INSECURE"] = str(config.ignore_tls_verification)
     return env_vars
+
+def convert_container_args_to_list(cmd, container_args):
+    if container_args:
+        for name, value in container_args.items():
+            # Passed just the name as boolean flag
+            if isinstance(value, bool) and value:
+                if len(name) == 1:
+                    cmd += ["-" + name]
+                else:
+                    cmd += ["--" + name]
+            else:
+                # Passed name=value
+                if len(name) == 1:
+                    cmd += ["-" + name, value]
+                else:
+                    cmd += ["--" + name, value]
+    return cmd
