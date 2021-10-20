@@ -22,6 +22,7 @@ from mlflow.projects.utils import (
     PROJECT_USE_CONDA,
     PROJECT_STORAGE_DIR,
     PROJECT_DOCKER_ARGS,
+    PROJECT_SINGULARITY_ARGS,
 )
 from mlflow.projects.backend import loader
 from mlflow.tracking.fluent import _get_experiment_id
@@ -70,6 +71,7 @@ def _run(
     version,
     parameters,
     docker_args,
+    singularity_args,
     backend_name,
     backend_config,
     use_conda,
@@ -84,6 +86,7 @@ def _run(
     backend_config[PROJECT_USE_CONDA] = use_conda
     backend_config[PROJECT_SYNCHRONOUS] = synchronous
     backend_config[PROJECT_DOCKER_ARGS] = docker_args
+    backend_config[PROJECT_SINGULARITY_ARGS] = singularity_args
     backend_config[PROJECT_STORAGE_DIR] = storage_dir
     # TODO: remove this check once kubernetes execution has been refactored
     if backend_name not in {"databricks", "kubernetes"}:
@@ -176,6 +179,7 @@ def run(
     version=None,
     parameters=None,
     docker_args=None,
+    singularity_args=None,
     experiment_name=None,
     experiment_id=None,
     backend="local",
@@ -209,6 +213,7 @@ def run(
     :param version: For Git-based projects, either a commit hash or a branch name.
     :param parameters: Parameters (dictionary) for the entry point command.
     :param docker_args: Arguments (dictionary) for the docker command.
+    :param singularity_args: Arguments (dictionary) for the singularity command.
     :param experiment_name: Name of experiment under which to launch the run.
     :param experiment_id: ID of experiment under which to launch the run.
     :param backend: Execution backend for the run: MLflow provides built-in support for "local",
@@ -297,6 +302,7 @@ def run(
         version=version,
         parameters=parameters,
         docker_args=docker_args,
+        singularity_args=singularity_args,
         backend_name=backend,
         backend_config=backend_config_dict,
         use_conda=use_conda,
