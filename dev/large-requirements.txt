@@ -2,3 +2,5 @@
 matplotlib
 plotly
 tf2onnx
+docker
+singularity
