@@ -31,6 +31,7 @@ from mlflow.projects.utils import (
     get_databricks_env_vars,
     get_entry_point_command,
     convert_container_args_to_list,
+    make_volume_abs,
     MLFLOW_LOCAL_BACKEND_RUN_ID_CONFIG,
     MLFLOW_CONTAINER_WORKDIR_PATH,
     PROJECT_USE_CONDA,
@@ -283,7 +284,7 @@ def _get_docker_command(image, active_run, docker_args=None, volumes=None, user_
 
     if volumes is not None:
         for v in volumes:
-            cmd += ["-v", v]
+            cmd += ["-v", make_volume_abs(v)]
 
     for key, value in env_vars.items():
         cmd += ["-e", "{key}={value}".format(key=key, value=value)]

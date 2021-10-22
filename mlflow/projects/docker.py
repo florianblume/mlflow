@@ -9,7 +9,7 @@ import urllib.request
 import docker
 
 from mlflow import tracking
-from mlflow.projects.utils import get_databricks_env_vars, get_local_uri_or_none
+from mlflow.projects.utils import get_databricks_env_vars, get_local_uri_or_none, get_paths_to_ignore
 from mlflow.exceptions import ExecutionException
 from mlflow.projects.utils import MLFLOW_CONTAINER_WORKDIR_PATH, MLFLOW_CONTAINER_TRACKING_DIR_PATH
 from mlflow.tracking.context.git_context import _get_git_commit
@@ -102,10 +102,11 @@ def _create_docker_build_ctx(work_dir, dockerfile_contents):
     """
     Creates build context tarfile containing Dockerfile and project code, returning path to tarfile
     """
+    ignore_func = shutil.ignore_patterns(*get_paths_to_ignore(work_dir))
     directory = tempfile.mkdtemp()
     try:
         dst_path = os.path.join(directory, "mlflow-project-contents")
-        shutil.copytree(src=work_dir, dst=dst_path)
+        shutil.copytree(src=work_dir, dst=dst_path, ignore=ignore_func)
         with open(os.path.join(dst_path, _GENERATED_DOCKERFILE_NAME), "w") as handle:
             handle.write(dockerfile_contents)
         _, result_path = tempfile.mkstemp()

@@ -10,12 +10,20 @@ from spython.utils import check_install
 from spython.main import Client
 
 from mlflow import tracking
-from mlflow.projects.utils import get_databricks_env_vars, get_run_env_vars, get_local_uri_or_none, convert_container_args_to_list
 from mlflow.exceptions import ExecutionException
 from mlflow.projects.utils import MLFLOW_CONTAINER_WORKDIR_PATH
 from mlflow.tracking.context.git_context import _get_git_commit
 from mlflow.utils import process, file_utils
 from mlflow.utils.mlflow_tags import MLFLOW_SINGULARITY_IMAGE_URI, MLFLOW_SINGULARITY_IMAGE_ID
+
+from mlflow.projects.utils import (
+    get_databricks_env_vars,
+    get_run_env_vars,
+    get_local_uri_or_none,
+    convert_container_args_to_list,
+    make_volume_abs,
+    get_paths_to_ignore
+) 
 
 
 _logger = logging.getLogger(__name__)
@@ -114,10 +122,11 @@ def _create_singularity_build_ctx(work_dir, recipe_contents):
     """
     Creates build context containing Singularity recipe and project code, returning path to folder
     """
+    ignore_func = shutil.ignore_patterns(*get_paths_to_ignore(work_dir))
     directory = tempfile.mkdtemp()
     try:
         dst_path = os.path.join(directory, "mlflow-project-contents")
-        shutil.copytree(src=work_dir, dst=dst_path)
+        shutil.copytree(src=work_dir, dst=dst_path, ignore=ignore_func)
         with open(os.path.join(dst_path, _GENERATED_RECIPE_NAME), "w") as handle:
             handle.write(recipe_contents)
     except Exception as exc:
@@ -144,6 +153,9 @@ def get_singularity_command(image, active_run, singularity_args=None, volumes=No
     cmd = Client._init_command("exec", cmd)
     cmd = convert_container_args_to_list(cmd, singularity_args)
     if volumes:
+        # Hack so that we can use relative paths and variables in the volumes to mount
+        for i, volume in enumerate(volumes):
+            volumes[i] = make_volume_abs(volume)
         cmd += Client._generate_bind_list(volumes)
 
     # TODO: include singularity options too?

@@ -345,6 +345,7 @@ def get_databricks_env_vars(tracking_uri):
         env_vars["DATABRICKS_INSECURE"] = str(config.ignore_tls_verification)
     return env_vars
 
+
 def convert_container_args_to_list(cmd, container_args):
     if container_args:
         for name, value in container_args.items():
@@ -361,3 +362,26 @@ def convert_container_args_to_list(cmd, container_args):
                 else:
                     cmd += ["--" + name, value]
     return cmd
+
+
+def make_volume_abs(volume):
+    volume1, volume2 = volume.split(':')
+    volume1 = os.path.abspath(os.path.expandvars(os.path.expanduser(volume1)))
+    volume2 = os.path.abspath(os.path.expandvars(os.path.expanduser(volume2)))
+    return volume1 + ':' + volume2
+
+
+def get_paths_to_ignore(work_dir):
+    """Parse the .dockerignore file."""
+    patterns = []
+    path = os.path.join(work_dir, ".dockerignore")
+    if not os.path.exists(path):
+        return patterns
+    with open(path) as f:
+        for line in f:
+            # Ignore comments
+            if line.strip().startswith("#"):
+                continue
+            # Parse the line
+            patterns += [line.strip()]
+    return patterns
