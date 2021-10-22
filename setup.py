@@ -51,8 +51,6 @@ SKINNY_REQUIREMENTS = [
     "pytz",
     "requests>=2.17.3",
     "packaging",
-    "docker",
-    "singularity",
     # Automated dependency detection in MLflow Models relies on
     # `importlib_metadata.packages_distributions` to resolve a module name to its package name
     # (e.g. 'sklearn' -> 'scikit-learn'). importlib_metadata 3.7.0 or newer supports this function:
@@ -70,6 +68,7 @@ CORE_REQUIREMENTS = SKINNY_REQUIREMENTS + [
     "alembic<=1.4.1",
     # Required
     "docker>=4.0.0",
+    "singularity>=3.7.0",
     "Flask",
     "gunicorn; platform_system != 'Windows'",
     "numpy",
