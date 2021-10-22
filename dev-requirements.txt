@@ -7,3 +7,5 @@ sphinx-click
 scikit-learn
 scipy
 kubernetes
+spython
+docker
