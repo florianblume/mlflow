@@ -96,7 +96,16 @@ def test_load_docker_project(tmpdir):
     conda_env: some-file.yaml
     """
             ),
-            "cannot contain both a docker and conda env",
+            "Project can only contain a single container or conda environment.",
+        ),
+        (
+            textwrap.dedent(
+                """
+    conda_env: file-does-not-exist.yaml
+    """
+            ),
+            "Project specified conda environment file file-does-not-exist.yaml, but no such "
+                "file was found."
         ),
         (
             textwrap.dedent(
@@ -105,7 +114,18 @@ def test_load_docker_project(tmpdir):
         not-image-attribute: blah
     """
             ),
-            "no image attribute found",
+            "Project configuration (MLproject file) was invalid: Docker "
+            "environment specified but no image attribute found."
+        ),
+        (
+            textwrap.dedent(
+                """
+    singularity_env:
+        not-image-attribute: blah
+    """
+            ),
+            "Project configuration (MLproject file) was invalid: Singularity "
+            "environment specified but no image attribute found."
         ),
     ],
 )
