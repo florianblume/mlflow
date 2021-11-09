@@ -104,16 +104,18 @@ class LocalBackend(AbstractBackend):
             tracking.MlflowClient().set_tag(active_run.info.run_id, MLFLOW_PROJECT_ENV, "singularity")
             validate_singularity_env(project)
             validate_singularity_installation()
-            """
-            We cannot build on the cluster since we are not root
-
-            image = build_singularity_image(
-                work_dir=work_dir,
-                repository_uri=project.name,
-                base_image=project.singularity_env.get("image"),
-                run_id=active_run.info.run_id,
-            )
-            """
+            
+            try:
+                # In case we don't have admin rights we cannot build singularity images
+                # but still run the code in the image
+                image = build_singularity_image(
+                    work_dir=work_dir,
+                    repository_uri=project.name,
+                    base_image=project.singularity_env.get("image"),
+                    run_id=active_run.info.run_id,
+                )
+            except:
+                print('Building singularity image failed, continuing without added layers (like code).')
             command_args += get_singularity_command(
                 image=project.singularity_env.get("image"),
                 active_run=active_run,
