@@ -104,18 +104,20 @@ class LocalBackend(AbstractBackend):
             tracking.MlflowClient().set_tag(active_run.info.run_id, MLFLOW_PROJECT_ENV, "singularity")
             validate_singularity_env(project)
             validate_singularity_installation()
-            
+
+            # Without admin rights singularity images are not buildable -> we'll just skip in this case
             try:
-                # In case we don't have admin rights we cannot build singularity images
-                # but still run the code in the image
                 image = build_singularity_image(
                     work_dir=work_dir,
+                    build_dir=project.singularity_env.get("build_dir"),
                     repository_uri=project.name,
                     base_image=project.singularity_env.get("image"),
                     run_id=active_run.info.run_id,
                 )
-            except:
-                print('Building singularity image failed, continuing without added layers (like code).')
+            except Exception as e:
+                print(e)
+                print('Could not build singularity image. Skipping.')
+
             command_args += get_singularity_command(
                 image=project.singularity_env.get("image"),
                 active_run=active_run,

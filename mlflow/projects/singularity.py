@@ -3,6 +3,7 @@ import os
 import posixpath
 import shutil
 import tempfile
+from typing import final
 import urllib.parse
 import urllib.request
 
@@ -21,6 +22,7 @@ from mlflow.projects.utils import (
     get_run_env_vars,
     get_local_uri_or_none,
     convert_container_args_to_list,
+    make_path_abs,
     make_volume_abs,
     get_paths_to_ignore
 ) 
@@ -57,10 +59,12 @@ def validate_singularity_env(project):
         )
 
 
-def build_singularity_image(work_dir, repository_uri, base_image, run_id):
+def build_singularity_image(work_dir, build_dir, repository_uri, base_image, run_id):
     """
-    Build a docker image containing the project in `work_dir`, using the base image.
+    Build a Singularity image containing the project in `work_dir`, using the base image.
     """
+    print('Obtaining Singularity image.')
+
     image_uri = _get_singularity_image_uri(repository_uri=repository_uri, work_dir=work_dir)
 
     # Bootstrap type varies based on base image
@@ -76,23 +80,28 @@ def build_singularity_image(work_dir, repository_uri, base_image, run_id):
         recipe_image = os.path.join(work_dir, base_image)
         if not os.path.exists(recipe_image):
             raise ExecutionException("Base image in project working directory not found: %s" % base_image)
-
+    tmp_directory = tempfile.mkdtemp()
+    from_image_name = base_image.split('://')[1]
+    # We need to copy the files from the temp directory to be sure that all .dockerignore files
+    # are not copies (i.e. %files temp_directory workdir)
     recipe = (
-        "Bootstrap: {bootstrap}\nFrom: {imagename}\n%files\n. {workdir}\n%runscript\ncd {workdir}\n"
+        "Bootstrap: {bootstrap}\nFrom: {from_image_name}\n%files\n{tmp_directory}/mlflow-project-contents {workdir}\n%runscript\ncd {workdir}\n"
     ).format(
         bootstrap=bootstrap,
-        imagename=recipe_image,
+        from_image_name=from_image_name,
+        tmp_directory=tmp_directory,
         workdir=MLFLOW_CONTAINER_WORKDIR_PATH,
     )
-    build_ctx_path = _create_singularity_build_ctx(work_dir, recipe)
-    final_image = os.path.join(work_dir, image_uri)
+    build_ctx_path = _create_singularity_build_ctx(work_dir, tmp_directory, recipe)
+    final_image = os.path.join(work_dir, build_dir, image_uri)
 
     # Build the image, or use from a previous commit
     if os.path.exists(final_image):
-        _logger.info("Final image %s already exists in working directory, will not rebuild." % image_uri)
+        _logger.info("Final image %s already exists in working directory, will not rebuild." % final_image)
     else:
         _logger.info("Building Singularity container...")
         final_image = Client.build(build_folder=build_ctx_path, recipe=os.path.join(build_ctx_path, _GENERATED_RECIPE_NAME), image=final_image, force=True)
+        print('Container successfully built.')
         try:
             shutil.rmtree(build_ctx_path)
         except Exception:  # pylint: disable=broad-except
@@ -118,18 +127,20 @@ def _get_singularity_image_uri(repository_uri, work_dir):
     return repository_uri + version_string + ".sif"
 
 
-def _create_singularity_build_ctx(work_dir, recipe_contents):
+def _create_singularity_build_ctx(work_dir, tmp_directory, recipe_contents):
     """
     Creates build context containing Singularity recipe and project code, returning path to folder
     """
     ignore_func = shutil.ignore_patterns(*get_paths_to_ignore(work_dir))
-    directory = tempfile.mkdtemp()
     try:
-        dst_path = os.path.join(directory, "mlflow-project-contents")
+        dst_path = os.path.join(tmp_directory, "mlflow-project-contents")
+        if os.path.exists(dst_path):
+            shutil.rmtree(dst_path)
         shutil.copytree(src=work_dir, dst=dst_path, ignore=ignore_func)
         with open(os.path.join(dst_path, _GENERATED_RECIPE_NAME), "w") as handle:
             handle.write(recipe_contents)
     except Exception as exc:
+        print(exc)
         raise ExecutionException(
             "Issue creating Singularity build context at %s" % dst_path
         )
