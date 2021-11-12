@@ -71,7 +71,7 @@ def load_project(directory):
 
     # Validate config if conda_env parameter is present
     conda_path = yaml_obj.get("conda_env")
-    if conda_path and docker_env or conda_path and docker_env or docker_env and singularity_env:
+    if conda_path and docker_env or conda_path and singularity_env or docker_env and singularity_env:
         raise ExecutionException("Project can only contain a single container or conda environment.")
 
     # Parse entry points

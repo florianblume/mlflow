@@ -10,11 +10,14 @@ import mlflow.projects.databricks
 import mlflow.tracking as tracking
 from mlflow.entities import RunStatus
 from mlflow.exceptions import ExecutionException, MlflowException
+from mlflow.projects.run_environment import RunEnvironment
+from mlflow.projects.singularity import SingularityRunEnvironment
+from mlflow.projects.docker import DockerRunEnvironment
+from mlflow.projects.conda import CondaRunEnvironment
 from mlflow.projects.submitted_run import SubmittedRun
 from mlflow.projects.utils import (
     PROJECT_SYNCHRONOUS,
     get_entry_point_command,
-    get_run_env_vars,
     fetch_and_validate_project,
     get_or_create_run,
     load_project,

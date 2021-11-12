@@ -312,18 +312,6 @@ def get_entry_point_command(project, entry_point, parameters, storage_dir):
     return commands
 
 
-def get_run_env_vars(run_id, experiment_id):
-    """
-    Returns a dictionary of environment variable key-value pairs to set in subprocess launched
-    to run MLflow projects.
-    """
-    return {
-        tracking._RUN_ID_ENV_VAR: run_id,
-        tracking._TRACKING_URI_ENV_VAR: tracking.get_tracking_uri(),
-        tracking._EXPERIMENT_ID_ENV_VAR: str(experiment_id),
-    }
-
-
 def get_databricks_env_vars(tracking_uri):
     if not mlflow.utils.uri.is_databricks_uri(tracking_uri):
         return {}
