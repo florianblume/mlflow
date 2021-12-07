@@ -19,9 +19,9 @@ class RunEnvironment(ABC):
         to run MLflow projects.
         """
         return {
-            tracking._RUN_ID_ENV_VAR: self._run_id,
+            tracking._RUN_ID_ENV_VAR: self.run_id,
             tracking._TRACKING_URI_ENV_VAR: tracking.get_tracking_uri(),
-            tracking._EXPERIMENT_ID_ENV_VAR: str(self._experiment_id),
+            tracking._EXPERIMENT_ID_ENV_VAR: str(self.experiment_id),
         }
 
     @abstractmethod

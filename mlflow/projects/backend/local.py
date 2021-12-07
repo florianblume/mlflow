@@ -92,7 +92,7 @@ class LocalBackend(AbstractBackend):
             command_args += get_entry_point_command(project, entry_point, params, storage_dir)
             command_str = command_separator.join(command_args)
             return _run_entry_point(
-                command_str, work_dir, experiment_id, run_id=active_run.info.run_id
+                command_str, run_environment
             )
         use_conda = backend_config[PROJECT_USE_CONDA]
         # Otherwise, invoke `mlflow run` in a subprocess
@@ -179,7 +179,7 @@ def _run_entry_point(command, run_environment):
     :param run_id: MLflow run ID associated with the entry point execution.
     """
     env = os.environ.copy()
-    env.update(run_environment.get_run_env_vars(run_environment.run_id, run_environment.experiment_id))
+    env.update(run_environment.get_run_env_vars())
     env.update(get_databricks_env_vars(tracking_uri=mlflow.get_tracking_uri()))
     _logger.info("=== Running command '%s' in run with ID '%s' === ", command, run_environment.run_id)
     # in case os name is not 'nt', we are not running on windows. It introduces

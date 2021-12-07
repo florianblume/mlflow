@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import ctypes
 import tempfile
 import urllib.parse
 
@@ -352,10 +353,13 @@ def convert_container_args_to_list(cmd, container_args):
     return cmd
 
 
+def make_path_abs(rel_path):
+    return os.path.abspath(os.path.expandvars(os.path.expanduser(rel_path)))
+
 def make_volume_abs(volume):
     volume1, volume2 = volume.split(':')
-    volume1 = os.path.abspath(os.path.expandvars(os.path.expanduser(volume1)))
-    volume2 = os.path.abspath(os.path.expandvars(os.path.expanduser(volume2)))
+    volume1 = make_path_abs(volume1)
+    volume2 = make_path_abs(volume2)
     return volume1 + ':' + volume2
 
 
@@ -373,3 +377,20 @@ def get_paths_to_ignore(work_dir):
             # Parse the line
             patterns += [line.strip()]
     return patterns
+
+
+def is_user_admin():
+    # type: () -> bool
+    """Return True if user has admin privileges.
+
+    Raises:
+        AdminStateUnknownError if user privileges cannot be determined.
+    """
+    try:
+        return os.getuid() == 0
+    except AttributeError:
+        pass
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin() == 1
+    except AttributeError:
+        return False

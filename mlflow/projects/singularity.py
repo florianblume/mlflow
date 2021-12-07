@@ -15,7 +15,7 @@ from spython.main import Client
 from mlflow import tracking
 from mlflow.exceptions import ExecutionException
 from mlflow.projects import RunEnvironment
-from mlflow.projects.utils import MLFLOW_CONTAINER_WORKDIR_PATH
+from mlflow.projects.utils import MLFLOW_CONTAINER_WORKDIR_PATH, is_user_admin
 from mlflow.tracking.context.git_context import _get_git_commit
 from mlflow.utils import process, file_utils
 from mlflow.utils.mlflow_tags import MLFLOW_SINGULARITY_IMAGE_URI, MLFLOW_SINGULARITY_IMAGE_ID
@@ -25,9 +25,10 @@ from mlflow.projects.utils import (
     get_local_uri_or_none,
     convert_container_args_to_list,
     make_volume_abs,
+    make_path_abs,
     get_paths_to_ignore,
     PROJECT_SINGULARITY_ARGS
-) 
+)
 
 
 _logger = logging.getLogger(__name__)
@@ -50,7 +51,6 @@ class SingularityRunEnvironment(RunEnvironment):
                 "at https://sylabs.io/guides/3.3/user-guide/installation.html."
             )
 
-
     def validate_environment(self):
         if not self._project.name:
             raise ExecutionException(
@@ -62,12 +62,10 @@ class SingularityRunEnvironment(RunEnvironment):
                 "to use via an 'image' field under the 'singularity_env' field."
             )
 
-
     def prepare_environment(self):
         """
         Build a Singularity image containing the project in `work_dir`, using the base image.
         """
-        print('Obtaining Singularity image.')
 
         image_uri = self._get_singularity_image_uri()
 
@@ -84,43 +82,63 @@ class SingularityRunEnvironment(RunEnvironment):
         else:
             recipe_image = os.path.join(self.work_dir, base_image)
             if not os.path.exists(recipe_image):
-                raise ExecutionException("Base image in project working directory not found: %s" % base_image)
-        tmp_directory = tempfile.mkdtemp()
-        from_image_name = base_image.split('://')[1]
-        # We need to copy the files from the temp directory to be sure that all .dockerignore files
-        # are not copies (i.e. %files temp_directory workdir)
-        recipe = (
-            "Bootstrap: {bootstrap}\nFrom: {from_image_name}\n%files\n{tmp_directory}/mlflow-project-contents {workdir}\n%runscript\ncd {workdir}\n"
-        ).format(
-            bootstrap=bootstrap,
-            from_image_name=from_image_name,
-            tmp_directory=tmp_directory,
-            workdir=MLFLOW_CONTAINER_WORKDIR_PATH,
-        )
-        build_ctx_path = self._create_singularity_build_ctx(tmp_directory, recipe)
+                raise ExecutionException(
+                    "Base image in project working directory not found: %s" % base_image)
         # Default to current working directory if no build dir is specified
         build_dir = self._project.singularity_env.get("build_dir", ".")
+        if not os.path.isabs(build_dir):
+            build_dir = make_path_abs(build_dir)
         final_image = os.path.join(self.work_dir, build_dir, image_uri)
 
-        # Build the image, or use from a previous commit
-        if os.path.exists(final_image):
-            _logger.info("Final image %s already exists in working directory, will not rebuild." % final_image)
-        else:
-            _logger.info("Building Singularity container...")
-            final_image = Client.build(build_folder=build_ctx_path,
-                                       recipe=os.path.join(build_ctx_path,
-                                       _GENERATED_RECIPE_NAME),
-                                       image=final_image,
-                                       force=True)
-            print('Successfully built container.')
-            try:
-                shutil.rmtree(build_ctx_path)
-            except Exception:  # pylint: disable=broad-except
-                _logger.info("Temporary docker context file %s was not deleted.", build_ctx_path)
-        tracking.MlflowClient().set_tag(self._run_id, MLFLOW_SINGULARITY_IMAGE_URI, image_uri)
-        tracking.MlflowClient().set_tag(self._run_id, MLFLOW_SINGULARITY_IMAGE_ID, image_uri)
-        self._image = final_image
+        _logger.info('Preparing Singularity image.')
 
+        if os.path.exists(final_image):
+            _logger.info(
+                "Final image %s already exists in working directory, reusing." % final_image)
+        else:
+            # We can only build the image when the user has admin rights. If they don't, we cannot
+            # add a new layer to the image containing the code, hence we simply use the image as
+            # it is to run the experiment.
+            if is_user_admin():
+                _logger.info(
+                    'User privileges suffice to build new Singularity container.')
+                _logger.info(
+                    'Creating new image layer with the project\s contents (except for excluded in .dockerignore).')
+                tmp_directory = tempfile.mkdtemp()
+                from_image_name = base_image.split('://')[1]
+                # We need to copy the files from the temp directory to be sure that all .dockerignore files
+                # are not copies (i.e. %files temp_directory workdir)
+                recipe = (
+                    "Bootstrap: {bootstrap}\nFrom: {from_image_name}\n%files\n{tmp_directory}/mlflow-project-contents {workdir}\n%runscript\ncd {workdir}\n"
+                ).format(
+                    bootstrap=bootstrap,
+                    from_image_name=from_image_name,
+                    tmp_directory=tmp_directory,
+                    workdir=MLFLOW_CONTAINER_WORKDIR_PATH,
+                )
+                build_ctx_path = self._create_singularity_build_ctx(
+                    tmp_directory, recipe)
+
+                _logger.info("Building new Singularity image.")
+                final_image = Client.build(build_folder=build_ctx_path,
+                                           recipe=os.path.join(build_ctx_path,
+                                                               _GENERATED_RECIPE_NAME),
+                                           image=final_image,
+                                           force=True,
+                                           options=["--fakeroot"])
+                _logger.info('Successfully built container.')
+                try:
+                    shutil.rmtree(build_ctx_path)
+                except Exception:  # pylint: disable=broad-except
+                    _logger.info(
+                        "Temporary Singularity context file %s was not deleted.", build_ctx_path)
+            else:
+                _logger.info(f'Singularity image not found locally, pulling {base_image}.')
+                Client.pull(base_image, pull_folder=build_dir, name=final_image)
+
+        tracking.MlflowClient().set_tag(self.run_id, MLFLOW_SINGULARITY_IMAGE_URI, image_uri)
+        tracking.MlflowClient().set_tag(self.run_id, MLFLOW_SINGULARITY_IMAGE_ID, image_uri)
+        self._image = final_image
 
     def _get_singularity_image_uri(self):
         """
@@ -138,17 +156,18 @@ class SingularityRunEnvironment(RunEnvironment):
         version_string = ":" + git_commit[:7] if git_commit else ""
         return repository_uri + version_string + ".sif"
 
-
     def _create_singularity_build_ctx(self, tmp_directory, recipe_contents):
         """
         Creates build context containing Singularity recipe and project code, returning path to folder
         """
-        ignore_func = shutil.ignore_patterns(*get_paths_to_ignore(self.work_dir))
+        ignore_func = shutil.ignore_patterns(
+            *get_paths_to_ignore(self.work_dir))
         try:
             dst_path = os.path.join(tmp_directory, "mlflow-project-contents")
             if os.path.exists(dst_path):
                 shutil.rmtree(dst_path)
-            shutil.copytree(src=self.work_dir, dst=dst_path, ignore=ignore_func)
+            shutil.copytree(src=self.work_dir, dst=dst_path,
+                            ignore=ignore_func)
             with open(os.path.join(dst_path, _GENERATED_RECIPE_NAME), "w") as handle:
                 handle.write(recipe_contents)
         except Exception as exc:
@@ -172,9 +191,7 @@ class SingularityRunEnvironment(RunEnvironment):
 
         # TODO: include singularity options too?
 
-        env_vars = self.get_run_env_vars(
-            run_id=self._run_id, experiment_id=self._experiment_id
-        )
+        env_vars = self.get_run_env_vars()
         tracking_uri = tracking.get_tracking_uri()
         tracking_cmds, tracking_envs = self._get_tracking_cmd_and_envs()
         artifact_cmds, artifact_envs = self._get_artifact_storage_cmd_and_envs()
@@ -212,9 +229,11 @@ class SingularityRunEnvironment(RunEnvironment):
         env_vars = dict()
 
         tracking_uri = tracking.get_tracking_uri()
-        local_path, container_tracking_uri = get_local_uri_or_none(tracking_uri)
+        local_path, container_tracking_uri = get_local_uri_or_none(
+            tracking_uri)
         if local_path is not None:
-            cmds = ["--bind", "%s:%s" % (local_path, _MLFLOW_SINGULARITY_TRACKING_DIR_PATH)]
+            cmds = ["--bind", "%s:%s" %
+                    (local_path, _MLFLOW_SINGULARITY_TRACKING_DIR_PATH)]
             env_vars[tracking._TRACKING_URI_ENV_VAR] = container_tracking_uri
         env_vars.update(get_databricks_env_vars(tracking_uri))
         return cmds, env_vars
