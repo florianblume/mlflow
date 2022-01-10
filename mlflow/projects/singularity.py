@@ -27,7 +27,8 @@ from mlflow.projects.utils import (
     make_volume_abs,
     make_path_abs,
     get_paths_to_ignore,
-    PROJECT_SINGULARITY_ARGS
+    PROJECT_SINGULARITY_ARGS,
+    MLFLOW_CONTAINER_WORKDIR_PATH
 )
 
 
@@ -91,17 +92,17 @@ class SingularityRunEnvironment(RunEnvironment):
         final_image = os.path.join(self.work_dir, build_dir, image_uri)
 
         _logger.info('Preparing Singularity image.')
-
         if os.path.exists(final_image):
             _logger.info(
                 "Final image %s already exists in working directory, reusing." % final_image)
         else:
+            _logger.info(f'Image {final_image} not found, trying to build it instead.')
             # We can only build the image when the user has admin rights. If they don't, we cannot
             # add a new layer to the image containing the code, hence we simply use the image as
             # it is to run the experiment.
             if is_user_admin():
                 _logger.info(
-                    'User privileges suffice to build new Singularity container.')
+                    'User privileges suffice to add layer to existing image.')
                 _logger.info(
                     'Creating new image layer with the project\s contents (except for excluded in .dockerignore).')
                 tmp_directory = tempfile.mkdtemp()
@@ -133,7 +134,13 @@ class SingularityRunEnvironment(RunEnvironment):
                     _logger.info(
                         "Temporary Singularity context file %s was not deleted.", build_ctx_path)
             else:
-                _logger.info(f'Singularity image not found locally, pulling {base_image}.')
+                _logger.info(f'Current user has no admin rights and therefore Singularity cannot'
+                              ' add a new layer to the base image. Instead pulling image and using'
+                              ' it directly. This means that, e.g., the source code will not be'
+                              ' persisted in a new layer. If you are used to the source code being'
+                              ' copied to a new layer, please instead use the volume definitions'
+                              ' of the MLproject file to bind the source manually.')
+                _logger.info(f'Pulling {base_image}...')
                 Client.pull(base_image, pull_folder=build_dir, name=final_image)
 
         tracking.MlflowClient().set_tag(self.run_id, MLFLOW_SINGULARITY_IMAGE_URI, image_uri)
@@ -221,6 +228,10 @@ class SingularityRunEnvironment(RunEnvironment):
 
         for key, value in env_vars.items():
             cmd += ["--env", "{key}={value}".format(key=key, value=value)]
+        # TODO we have to set the working directory as an argument on the command tring
+        # because the new image does not necessarily get built (which would also set
+        # the working directory accordingly) when the user doesn't have admin rights
+        cmd += ["--pwd", MLFLOW_CONTAINER_WORKDIR_PATH]
         cmd += [self._image]
         return cmd
 

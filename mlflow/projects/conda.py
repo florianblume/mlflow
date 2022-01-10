@@ -20,6 +20,9 @@ class CondaRunEnvironment(RunEnvironment):
     def get_command(self):
         return get_conda_command(self._conda_env_name)
 
+    def add_run_args(self, run_args):
+        pass
+
     @staticmethod
     def get_command_separator():
         return ' && '
