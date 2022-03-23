@@ -27,6 +27,7 @@ from mlflow.projects.utils import (
     make_volume_abs,
     make_path_abs,
     get_paths_to_ignore,
+    root_temp_directory,
     PROJECT_SINGULARITY_ARGS,
     MLFLOW_CONTAINER_WORKDIR_PATH
 )
@@ -105,7 +106,7 @@ class SingularityRunEnvironment(RunEnvironment):
                     'User privileges suffice to add layer to existing image.')
                 _logger.info(
                     'Creating new image layer with the project\s contents (except for excluded in .dockerignore).')
-                tmp_directory = tempfile.mkdtemp()
+                tmp_directory = tempfile.mkdtemp(dir=root_temp_directory())
                 from_image_name = base_image.split('://')[1]
                 # We need to copy the files from the temp directory to be sure that all .dockerignore files
                 # are not copies (i.e. %files temp_directory workdir)

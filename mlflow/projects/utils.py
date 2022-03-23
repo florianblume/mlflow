@@ -1,3 +1,4 @@
+import fnmatch
 import logging
 import os
 import re
@@ -300,6 +301,8 @@ def get_entry_point_command(project, entry_point, parameters, storage_dir):
     :param storage_dir: Base local directory to use for downloading remote artifacts passed to
                         arguments of type 'path'. If None, a temporary base directory is used.
     """
+    if storage_dir is None:
+        storage_dir = root_temp_directory()
     storage_dir_for_run = _get_storage_dir(storage_dir)
     _logger.info(
         "=== Created directory %s for downloading remote URIs passed to arguments of"
@@ -356,6 +359,7 @@ def convert_container_args_to_list(cmd, container_args):
 def make_path_abs(rel_path):
     return os.path.abspath(os.path.expandvars(os.path.expanduser(rel_path)))
 
+
 def make_volume_abs(volume):
     volume1, volume2 = volume.split(':')
     volume1 = make_path_abs(volume1)
@@ -366,7 +370,7 @@ def make_volume_abs(volume):
 def get_paths_to_ignore(work_dir):
     """Parse the .dockerignore file."""
     patterns = []
-    path = os.path.join(work_dir, ".dockerignore")
+    path = os.path.join(work_dir, ".dockerignore_mlflow")
     if not os.path.exists(path):
         return patterns
     with open(path) as f:
@@ -377,6 +381,24 @@ def get_paths_to_ignore(work_dir):
             # Parse the line
             patterns += [line.strip()]
     return patterns
+
+
+def ignore_patterns(*patterns):
+    """Function that can be used as copytree() ignore parameter.
+
+    Patterns is a sequence of glob-style patterns
+    that are used to exclude files"""
+    def _ignore_patterns(path, names):
+        ignored_names = []
+        for pattern in patterns:
+            if '$' in pattern:
+                pattern = make_path_abs(pattern)
+                for name in names:
+                    if os.path.abspath(os.path.join(path, name)) == pattern:
+                        ignored_names.append(name)
+            ignored_names.extend(fnmatch.filter(names, pattern))
+        return set(ignored_names)
+    return _ignore_patterns
 
 
 def is_user_admin():
@@ -394,3 +416,6 @@ def is_user_admin():
         return ctypes.windll.shell32.IsUserAnAdmin() == 1
     except AttributeError:
         return False
+
+def root_temp_directory():
+    return os.path.expanduser('~/tmp')

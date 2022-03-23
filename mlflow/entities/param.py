@@ -10,7 +10,7 @@ class Param(_MLflowObject):
     """
 
     def __init__(self, key, value):
-        if "pyspark.ml" in sys.modules:
+        if "pyspark.ml" in sys.modules and False:
             import pyspark.ml.param
 
             if isinstance(key, pyspark.ml.param.Param):

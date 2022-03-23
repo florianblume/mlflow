@@ -73,7 +73,6 @@ class LocalBackend(AbstractBackend):
         else:
             # The user wants to run their code in a system environment and doesn't want to activate anything
             pass
-
         if run_environment is not None:
             tracking.MlflowClient().set_tag(active_run.info.run_id, MLFLOW_PROJECT_ENV, env_name)
             run_environment = run_environment(work_dir, project, active_run, backend_config)

@@ -1,3 +1,4 @@
+from codecs import ignore_errors
 import logging
 import os
 import posixpath
@@ -18,10 +19,13 @@ from mlflow.utils import process, file_utils
 from mlflow.utils.mlflow_tags import MLFLOW_DOCKER_IMAGE_URI, MLFLOW_DOCKER_IMAGE_ID
 from mlflow.projects.utils import (
     convert_container_args_to_list,
+    ignore_patterns,
     make_volume_abs,
     get_databricks_env_vars,
     get_local_uri_or_none,
     get_paths_to_ignore,
+    root_temp_directory,
+    ignore_patterns,
     PROJECT_DOCKER_ARGS,
     MLFLOW_CONTAINER_TRACKING_DIR_PATH,
     MLFLOW_CONTAINER_WORKDIR_PATH
@@ -89,8 +93,8 @@ class DockerRunEnvironment(RunEnvironment):
             os.remove(build_ctx_path)
         except Exception:
             _logger.info("Temporary docker context file %s was not deleted.", build_ctx_path)
-        tracking.MlflowClient().set_tag(self._run_id, MLFLOW_DOCKER_IMAGE_URI, image_uri)
-        tracking.MlflowClient().set_tag(self._run_id, MLFLOW_DOCKER_IMAGE_ID, image.id)
+        tracking.MlflowClient().set_tag(self.run_id, MLFLOW_DOCKER_IMAGE_URI, image_uri)
+        tracking.MlflowClient().set_tag(self.run_id, MLFLOW_DOCKER_IMAGE_ID, image.id)
         self._image = image
 
     def _get_docker_image_uri(self):
@@ -105,7 +109,7 @@ class DockerRunEnvironment(RunEnvironment):
         repository_uri = self._project.name
         repository_uri = repository_uri if repository_uri else "docker-project"
         # Optionally include first 7 digits of git SHA in tag name, if available.
-        git_commit = _get_git_commit(self._work_dir)
+        git_commit = _get_git_commit(self.work_dir)
         version_string = ":" + git_commit[:7] if git_commit else ""
         return repository_uri + version_string
 
@@ -113,14 +117,19 @@ class DockerRunEnvironment(RunEnvironment):
         """
         Creates build context tarfile containing Dockerfile and project code, returning path to tarfile
         """
-        ignore_func = shutil.ignore_patterns(*get_paths_to_ignore(self._work_dir))
-        directory = tempfile.mkdtemp()
+        ignore_func = ignore_patterns(*get_paths_to_ignore(self.work_dir))
+        # We are using the home directory of the user for the temporary directory
+        # since otherwise the temporary directory will be created in the pwd
+        # causing an infinite copy loop
+        tmp_dir = root_temp_directory()
+        os.makedirs(tmp_dir, exist_ok=True)
+        directory = tempfile.mkdtemp(dir=tmp_dir)
         try:
             dst_path = os.path.join(directory, "mlflow-project-contents")
-            shutil.copytree(src=self._work_dir, dst=dst_path, ignore=ignore_func)
+            shutil.copytree(src=self.work_dir, dst=dst_path, ignore=ignore_func)
             with open(os.path.join(dst_path, _GENERATED_DOCKERFILE_NAME), "w") as handle:
                 handle.write(dockerfile_contents)
-            _, result_path = tempfile.mkstemp()
+            _, result_path = tempfile.mkstemp(dir=tmp_dir)
             file_utils.make_tarfile(
                 output_filename=result_path, source_dir=dst_path, archive_name=_PROJECT_TAR_ARCHIVE_NAME
             )
@@ -129,8 +138,6 @@ class DockerRunEnvironment(RunEnvironment):
         return result_path
 
     def get_command(self):
-        from mlflow.projects.docker import get_docker_tracking_cmd_and_envs
-
         docker_path = "docker"
         cmd = [docker_path, "run", "--rm"]
 
@@ -138,10 +145,7 @@ class DockerRunEnvironment(RunEnvironment):
         # TODO: this could be a shared function for containers
         cmd = convert_container_args_to_list(cmd, docker_args)
 
-        env_vars = self.get_run_env_vars(
-            run_id=self._run_id,
-            experiment_id=self._image._experiment_id
-        )
+        env_vars = self.get_run_env_vars()
         tracking_cmds, tracking_envs = self._get_tracking_cmd_and_envs()
         artifact_cmds, artifact_envs = self._get_artifact_storage_cmd_and_envs()
 
@@ -189,7 +193,7 @@ class DockerRunEnvironment(RunEnvironment):
         return cmds, env_vars
 
     def _get_artifact_storage_cmd_and_envs(self):
-        artifact_uri = self._image.active_run.info.artifact_uri
+        artifact_uri = self._active_run.info.artifact_uri
         artifact_repo = artifact_storage.get_artifact_repository(artifact_uri)
         _get_cmd_and_envs = artifact_storage._artifact_storages.get(type(artifact_repo))
         if _get_cmd_and_envs is not None:
