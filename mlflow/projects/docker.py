@@ -68,8 +68,14 @@ class DockerRunEnvironment(RunEnvironment):
         """
         Build a docker image containing the project in `work_dir`, using the base image.
         """
+        self.base_image = self._project.docker_env.get("image")
+        tracking.MlflowClient().set_tag(self.run_id, MLFLOW_DOCKER_IMAGE_ID, self.base_image)
+        
+        # NOTE: We skip building the new image and adding the source code as a
+        # new layer since that creates confusion and we do something similar
+        # manually e.g. after publishing a paper
+        """
         image_uri = self._get_docker_image_uri()
-        base_image = self._project.docker_env.get("image")
         dockerfile = (
             "FROM {imagename}\n" "COPY {build_context_path}/ {workdir}\n" "WORKDIR {workdir}\n"
         ).format(
@@ -96,6 +102,7 @@ class DockerRunEnvironment(RunEnvironment):
         tracking.MlflowClient().set_tag(self.run_id, MLFLOW_DOCKER_IMAGE_URI, image_uri)
         tracking.MlflowClient().set_tag(self.run_id, MLFLOW_DOCKER_IMAGE_ID, image.id)
         self._image = image
+        """
 
     def _get_docker_image_uri(self):
         """
@@ -106,16 +113,23 @@ class DockerRunEnvironment(RunEnvironment):
                             repository URI is used as the prefix of the image URI.
         :param work_dir: Path to the working directory in which to search for a git commit hash
         """
+        
+        # NOTE: Not needed anymore
+        """
         repository_uri = self._project.name
         repository_uri = repository_uri if repository_uri else "docker-project"
         # Optionally include first 7 digits of git SHA in tag name, if available.
         git_commit = _get_git_commit(self.work_dir)
         version_string = ":" + git_commit[:7] if git_commit else ""
         return repository_uri + version_string
+        """
 
     def _create_docker_build_ctx(self, dockerfile_contents):
         """
         Creates build context tarfile containing Dockerfile and project code, returning path to tarfile
+        """
+
+        # NOTE: Not needed anymore
         """
         ignore_func = ignore_patterns(*get_paths_to_ignore(self.work_dir))
         # We are using the home directory of the user for the temporary directory
@@ -136,10 +150,12 @@ class DockerRunEnvironment(RunEnvironment):
         finally:
             shutil.rmtree(directory)
         return result_path
+        """
 
     def get_command(self):
         docker_path = "docker"
         cmd = [docker_path, "run", "--rm"]
+        cmd += ["--workdir", MLFLOW_CONTAINER_WORKDIR_PATH]
 
         docker_args = self._backend_config[PROJECT_DOCKER_ARGS]
         # TODO: this could be a shared function for containers
@@ -177,7 +193,7 @@ class DockerRunEnvironment(RunEnvironment):
 
         for key, value in env_vars.items():
             cmd += ["-e", "{key}={value}".format(key=key, value=value)]
-        cmd += [self._image.tags[0]]
+        cmd += [self.base_image]
         return cmd
 
     def _get_tracking_cmd_and_envs(self):
