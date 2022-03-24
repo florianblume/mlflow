@@ -310,8 +310,12 @@ def get_entry_point_command(project, entry_point, parameters, storage_dir):
         storage_dir_for_run,
     )
     commands = []
+    command = project.get_entry_point(entry_point).compute_command(parameters, storage_dir_for_run)
+    # Docker needs commands to be in additional quotes unfortunately
+    if project.docker_env:
+        command = '\"' + command + '\"'
     commands.append(
-        project.get_entry_point(entry_point).compute_command(parameters, storage_dir_for_run)
+       command 
     )
     return commands
 

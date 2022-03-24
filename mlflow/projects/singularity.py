@@ -69,7 +69,7 @@ class SingularityRunEnvironment(RunEnvironment):
         Build a Singularity image containing the project in `work_dir`, using the base image.
         """
 
-        image_uri = self._get_singularity_image_uri()
+        image_uri = self._project.name + '.sif'
 
         # Bootstrap type varies based on base image
         bootstrap = "localimage"
@@ -97,52 +97,8 @@ class SingularityRunEnvironment(RunEnvironment):
             _logger.info(
                 "Final image %s already exists in working directory, reusing." % final_image)
         else:
-            _logger.info(f'Image {final_image} not found, trying to build it instead.')
-            # We can only build the image when the user has admin rights. If they don't, we cannot
-            # add a new layer to the image containing the code, hence we simply use the image as
-            # it is to run the experiment.
-            if is_user_admin():
-                _logger.info(
-                    'User privileges suffice to add layer to existing image.')
-                _logger.info(
-                    'Creating new image layer with the project\s contents (except for excluded in .dockerignore).')
-                tmp_directory = tempfile.mkdtemp(dir=root_temp_directory())
-                from_image_name = base_image.split('://')[1]
-                # We need to copy the files from the temp directory to be sure that all .dockerignore files
-                # are not copies (i.e. %files temp_directory workdir)
-                recipe = (
-                    "Bootstrap: {bootstrap}\nFrom: {from_image_name}\n%files\n{tmp_directory}/mlflow-project-contents {workdir}\n%runscript\ncd {workdir}\n"
-                ).format(
-                    bootstrap=bootstrap,
-                    from_image_name=from_image_name,
-                    tmp_directory=tmp_directory,
-                    workdir=MLFLOW_CONTAINER_WORKDIR_PATH,
-                )
-                build_ctx_path = self._create_singularity_build_ctx(
-                    tmp_directory, recipe)
-
-                _logger.info("Building new Singularity image.")
-                final_image = Client.build(build_folder=build_ctx_path,
-                                           recipe=os.path.join(build_ctx_path,
-                                                               _GENERATED_RECIPE_NAME),
-                                           image=final_image,
-                                           force=True,
-                                           options=["--fakeroot"])
-                _logger.info('Successfully built container.')
-                try:
-                    shutil.rmtree(build_ctx_path)
-                except Exception:  # pylint: disable=broad-except
-                    _logger.info(
-                        "Temporary Singularity context file %s was not deleted.", build_ctx_path)
-            else:
-                _logger.info(f'Current user has no admin rights and therefore Singularity cannot'
-                              ' add a new layer to the base image. Instead pulling image and using'
-                              ' it directly. This means that, e.g., the source code will not be'
-                              ' persisted in a new layer. If you are used to the source code being'
-                              ' copied to a new layer, please instead use the volume definitions'
-                              ' of the MLproject file to bind the source manually.')
-                _logger.info(f'Pulling {base_image}...')
-                Client.pull(base_image, pull_folder=build_dir, name=final_image)
+            _logger.info(f'Final image does not exist locally. Pulling {base_image}...')
+            Client.pull(base_image, pull_folder=build_dir, name=final_image)
 
         tracking.MlflowClient().set_tag(self.run_id, MLFLOW_SINGULARITY_IMAGE_URI, image_uri)
         tracking.MlflowClient().set_tag(self.run_id, MLFLOW_SINGULARITY_IMAGE_ID, image_uri)
@@ -157,12 +113,17 @@ class SingularityRunEnvironment(RunEnvironment):
                             repository URI is used as the prefix of the image URI.
         :param work_dir: Path to the working directory in which to search for a git commit hash
         """
+        
+        # NOTE: This is not used anymore, we always only use the base image
+        # without adding new layers
+        """
         repository_uri = self._project.name
         repository_uri = repository_uri if repository_uri else "singularity-project"
         # Optionally include first 7 digits of git SHA in tag name, if available.
         git_commit = _get_git_commit(self.work_dir)
         version_string = ":" + git_commit[:7] if git_commit else ""
         return repository_uri + version_string + ".sif"
+        """
 
     def _create_singularity_build_ctx(self, tmp_directory, recipe_contents):
         """
