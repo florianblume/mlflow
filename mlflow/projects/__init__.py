@@ -109,8 +109,7 @@ def _run(
             )
             return submitted_run
 
-    work_dir = fetch_and_validate_project(uri, version, entry_point, parameters)
-    project = load_project(work_dir)
+    project, work_dir = fetch_and_validate_project(uri, version, entry_point, parameters)
     _validate_execution_environment(project, backend_name)
 
     active_run = get_or_create_run(

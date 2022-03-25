@@ -87,7 +87,7 @@ def _get_git_repo_url(work_dir):
 
 
 def _expand_uri(uri):
-    if _is_local_uri(uri):
+    if is_local_uri(uri):
         return os.path.abspath(uri)
     return uri
 
@@ -97,7 +97,7 @@ def _is_file_uri(uri):
     return _FILE_URI_REGEX.match(uri)
 
 
-def _is_local_uri(uri):
+def is_local_uri(uri):
     """Returns True if the passed-in URI should be interpreted as a path on the local filesystem."""
     return not _GIT_URI_REGEX.match(uri)
 
@@ -144,7 +144,7 @@ def fetch_and_validate_project(uri, version, entry_point, parameters):
     work_dir = _fetch_project(uri=uri, version=version)
     project = _project_spec.load_project(work_dir)
     project.get_entry_point(entry_point)._validate_parameters(parameters)
-    return work_dir
+    return project, work_dir
 
 
 def load_project(work_dir):
@@ -156,7 +156,7 @@ def _fetch_project(uri, version=None):
     Fetch a project into a local directory, returning the path to the local project directory.
     """
     parsed_uri, subdirectory = _parse_subdirectory(uri)
-    use_temp_dst_dir = _is_zip_uri(parsed_uri) or not _is_local_uri(parsed_uri)
+    use_temp_dst_dir = _is_zip_uri(parsed_uri) or not is_local_uri(parsed_uri)
     dst_dir = tempfile.mkdtemp() if use_temp_dst_dir else parsed_uri
     if use_temp_dst_dir:
         _logger.info("=== Fetching project from %s into %s ===", uri, dst_dir)
@@ -165,10 +165,10 @@ def _fetch_project(uri, version=None):
             parsed_file_uri = urllib.parse.urlparse(urllib.parse.unquote(parsed_uri))
             parsed_uri = os.path.join(parsed_file_uri.netloc, parsed_file_uri.path)
         _unzip_repo(
-            zip_file=(parsed_uri if _is_local_uri(parsed_uri) else _fetch_zip_repo(parsed_uri)),
+            zip_file=(parsed_uri if is_local_uri(parsed_uri) else _fetch_zip_repo(parsed_uri)),
             dst_dir=dst_dir,
         )
-    elif _is_local_uri(uri):
+    elif is_local_uri(uri):
         if version is not None:
             raise ExecutionException("Setting a version is only supported for Git project URIs")
         if use_temp_dst_dir:
@@ -247,7 +247,7 @@ def _create_run(uri, experiment_id, work_dir, version, entry_point, parameters):
     entry point, and parameters of the project) about the run. Return an ``ActiveRun`` that can be
     used to report additional data about the run (metrics/params) to the tracking server.
     """
-    if _is_local_uri(uri):
+    if is_local_uri(uri):
         source_name = tracking._tracking_service.utils._get_git_url_if_present(_expand_uri(uri))
     else:
         source_name = _expand_uri(uri)

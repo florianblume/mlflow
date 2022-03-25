@@ -73,6 +73,7 @@ CORE_REQUIREMENTS = SKINNY_REQUIREMENTS + [
     "gunicorn; platform_system != 'Windows'",
     "numpy",
     "pandas",
+    "pyyaml-include",
     "prometheus-flask-exporter",
     "querystring_parser",
     # Pin sqlparse for: https://github.com/mlflow/mlflow/issues/3433

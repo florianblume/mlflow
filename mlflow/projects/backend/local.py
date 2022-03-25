@@ -20,6 +20,7 @@ from mlflow.projects.utils import (
     load_project,
     get_databricks_env_vars,
     get_entry_point_command,
+    is_local_uri,
     MLFLOW_LOCAL_BACKEND_RUN_ID_CONFIG,
     PROJECT_USE_CONDA,
     PROJECT_SYNCHRONOUS,
@@ -27,6 +28,7 @@ from mlflow.projects.utils import (
 )
 from mlflow.utils.conda import get_conda_command, get_or_create_conda_env
 from mlflow import tracking
+from mlflow.tracking.fluent import _RUN_ID_ENV_VAR
 from mlflow.utils.mlflow_tags import MLFLOW_PROJECT_ENV
 
 
@@ -45,8 +47,7 @@ class LocalBackend(AbstractBackend):
         self, project_uri, entry_point, params, version, backend_config, tracking_uri, experiment_id
     ):
         # Validates that there is only one environment defined in the project
-        work_dir = fetch_and_validate_project(project_uri, version, entry_point, params)
-        project = load_project(work_dir)
+        project, work_dir = fetch_and_validate_project(project_uri, version, entry_point, params)
 
         if MLFLOW_LOCAL_BACKEND_RUN_ID_CONFIG in backend_config:
             run_id = backend_config[MLFLOW_LOCAL_BACKEND_RUN_ID_CONFIG]
@@ -75,6 +76,11 @@ class LocalBackend(AbstractBackend):
             pass
         if run_environment is not None:
             tracking.MlflowClient().set_tag(active_run.info.run_id, MLFLOW_PROJECT_ENV, env_name)
+            # Since the user can pass the path to the MLproject file instead
+            # of only the directory, in this case we obtain the directory
+            # this way
+            if os.path.isfile(work_dir):
+                work_dir = os.path.dirname(work_dir)
             run_environment = run_environment(work_dir, project, active_run, backend_config)
             run_environment.validate_installation()
             run_environment.validate_environment()
@@ -125,7 +131,8 @@ def _invoke_mlflow_run_subprocess(
     env_vars = run_environment.get_run_env_vars()
     env_vars.update(get_databricks_env_vars(mlflow.get_tracking_uri()))
     mlflow_run_subprocess = _run_mlflow_run_cmd(mlflow_run_arr, env_vars)
-    return LocalSubmittedRun(run_environment.run_id, mlflow_run_subprocess)
+    run_id = run_environment.run_id if run_environment else os.environ[_RUN_ID_ENV_VAR]
+    return LocalSubmittedRun(run_id, mlflow_run_subprocess)
 
 
 def _build_mlflow_run_cmd(

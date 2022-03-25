@@ -4,6 +4,8 @@ import os
 from shlex import quote
 import yaml
 
+from yamlinclude import YamlIncludeConstructor
+
 from mlflow import data
 from mlflow.exceptions import ExecutionException
 from mlflow.tracking import artifact_utils
@@ -15,22 +17,35 @@ MLPROJECT_FILE_NAME = "mlproject"
 DEFAULT_CONDA_FILE_NAME = "conda.yaml"
 
 
-def _find_mlproject(directory):
-    filenames = os.listdir(directory)
-    for filename in filenames:
-        if filename.lower() == MLPROJECT_FILE_NAME:
-            return os.path.join(directory, filename)
-    return None
+def _find_mlproject(path):
+    if os.path.isdir(path):
+        filenames = os.listdir(path)
+        for filename in filenames:
+            if filename.lower() == MLPROJECT_FILE_NAME:
+                directory = path
+                return os.path.join(directory, filename), directory
+        return None
+    elif os.path.exists(path) and os.path.isfile(path):
+        # Here the user passed the direct path to the MLproject file like
+        # project_dir/MLproject
+        return path, os.path.dirname(path)
+    else:
+        raise ExecutionException(
+            f"The passed argument \'{path}\' to obtain the MLproject "
+             "file from is either not a directory or does not exist.")
 
 
-def load_project(directory):
-    mlproject_path = _find_mlproject(directory)
+def load_project(project_path):
+    mlproject_path, directory = _find_mlproject(project_path)
 
     # TODO: Validate structure of YAML loaded from the file
     yaml_obj = {}
     if mlproject_path is not None:
+        YamlIncludeConstructor.add_to_loader_class(
+            loader_class=yaml.FullLoader,
+            base_dir=os.path.dirname(mlproject_path))
         with open(mlproject_path) as mlproject_file:
-            yaml_obj = yaml.safe_load(mlproject_file)
+            yaml_obj = yaml.load(mlproject_file, Loader=yaml.FullLoader)
 
     project_name = yaml_obj.get("name")
 
