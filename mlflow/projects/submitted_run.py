@@ -63,14 +63,9 @@ class LocalSubmittedRun(SubmittedRun):
     command locally.
     """
 
-    def __init__(self, run_id, command_proc):
+    def __init__(self,  command_proc):
         super().__init__()
-        self._run_id = run_id
         self.command_proc = command_proc
-
-    @property
-    def run_id(self):
-        return self._run_id
 
     def wait(self):
         return self.command_proc.wait() == 0
@@ -89,10 +84,8 @@ class LocalSubmittedRun(SubmittedRun):
                 # The child process may have exited before we attempted to terminate it, so we
                 # ignore OSErrors raised during child process termination
                 _logger.info(
-                    "Failed to terminate child process (PID %s) corresponding to MLflow "
-                    "run with ID %s. The process may have already exited.",
+                    "Failed to terminate child process (PID %s) corresponding to MLflow The process may have already exited.",
                     self.command_proc.pid,
-                    self._run_id,
                 )
             self.command_proc.wait()
 

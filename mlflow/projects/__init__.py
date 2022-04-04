@@ -104,9 +104,6 @@ def _run(
                 tracking_store_uri,
                 experiment_id,
             )
-            tracking.MlflowClient().set_tag(
-                submitted_run.run_id, MLFLOW_PROJECT_BACKEND, backend_name
-            )
             return submitted_run
 
     project, work_dir = fetch_and_validate_project(uri, version, entry_point, parameters)
@@ -117,9 +114,6 @@ def _run(
     )
 
     if backend_name == "databricks":
-        tracking.MlflowClient().set_tag(
-            active_run.info.run_id, MLFLOW_PROJECT_BACKEND, "databricks"
-        )
         from mlflow.projects.databricks import run_databricks
 
         return run_databricks(
@@ -188,8 +182,7 @@ def run(
     backend_config=None,
     use_conda=True,
     storage_dir=None,
-    synchronous=True,
-    run_id=None,
+    synchronous=True
 ):
     """
     Run an MLflow project. The project can be local or stored at a Git URI.
@@ -243,9 +236,6 @@ def run(
                         asynchronous runs launched via this method will be terminated. If
                         ``synchronous`` is True and the run fails, the current process will
                         error out as well.
-    :param run_id: Note: this argument is used internally by the MLflow project APIs and should
-                   not be specified. If specified, the run ID will be used instead of
-                   creating a new run.
     :return: :py:class:`mlflow.projects.SubmittedRun` exposing information (e.g. run ID)
              about the launched run.
 
@@ -290,8 +280,6 @@ def run(
 
     if backend == "databricks":
         mlflow.projects.databricks.before_run_validations(mlflow.get_tracking_uri(), backend_config)
-    elif backend == "local" and run_id is not None:
-        backend_config_dict[MLFLOW_LOCAL_BACKEND_RUN_ID_CONFIG] = run_id
 
     experiment_id = _resolve_experiment_id(
         experiment_name=experiment_name, experiment_id=experiment_id
@@ -317,22 +305,16 @@ def run(
 
 def _wait_for(submitted_run_obj):
     """Wait on the passed-in submitted run, reporting its status to the tracking server."""
-    run_id = submitted_run_obj.run_id
-    active_run = None
     # Note: there's a small chance we fail to report the run's status to the tracking server if
     # we're interrupted before we reach the try block below
     try:
-        active_run = tracking.MlflowClient().get_run(run_id) if run_id is not None else None
         if submitted_run_obj.wait():
-            _logger.info("=== Run (ID '%s') succeeded ===", run_id)
-            _maybe_set_run_terminated(active_run, "FINISHED")
+            _logger.info("=== Run succeeded ===")
         else:
-            _maybe_set_run_terminated(active_run, "FAILED")
-            raise ExecutionException("Run (ID '%s') failed" % run_id)
+            raise ExecutionException("Run failed")
     except KeyboardInterrupt:
-        _logger.error("=== Run (ID '%s') interrupted, cancelling run ===", run_id)
+        _logger.error("=== Run interrupted, cancelling run ===")
         submitted_run_obj.cancel()
-        _maybe_set_run_terminated(active_run, "FAILED")
         raise
 
 

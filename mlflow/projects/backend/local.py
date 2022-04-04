@@ -49,14 +49,6 @@ class LocalBackend(AbstractBackend):
         # Validates that there is only one environment defined in the project
         project, work_dir = fetch_and_validate_project(project_uri, version, entry_point, params)
 
-        if MLFLOW_LOCAL_BACKEND_RUN_ID_CONFIG in backend_config:
-            run_id = backend_config[MLFLOW_LOCAL_BACKEND_RUN_ID_CONFIG]
-        else:
-            run_id = None
-        active_run = get_or_create_run(
-            run_id, project_uri, experiment_id, work_dir, version, entry_point, params
-        )
-
         command_args = []
         command_separator = ' '
 
@@ -75,13 +67,12 @@ class LocalBackend(AbstractBackend):
             # The user wants to run their code in a system environment and doesn't want to activate anything
             pass
         if run_environment is not None:
-            tracking.MlflowClient().set_tag(active_run.info.run_id, MLFLOW_PROJECT_ENV, env_name)
             # Since the user can pass the path to the MLproject file instead
             # of only the directory, in this case we obtain the directory
             # this way
             if os.path.isfile(work_dir):
                 work_dir = os.path.dirname(work_dir)
-            run_environment = run_environment(work_dir, project, active_run, backend_config)
+            run_environment = run_environment(work_dir, project, backend_config)
             run_environment.validate_installation()
             run_environment.validate_environment()
             run_environment.prepare_environment()
@@ -119,30 +110,28 @@ def _invoke_mlflow_run_subprocess(
     Run an MLflow project asynchronously by invoking ``mlflow run`` in a subprocess, returning
     a SubmittedRun that can be used to query run status.
     """
-    _logger.info("=== Asynchronously launching MLflow run with ID %s ===", run_environment.run_id)
+    _logger.info("=== Asynchronously launching MLflow run ===")
     mlflow_run_arr = _build_mlflow_run_cmd(
         uri=work_dir,
         entry_point=entry_point,
         run_environment=run_environment,
         storage_dir=storage_dir,
-        run_id=run_environment.run_id,
         parameters=parameters,
     )
     env_vars = run_environment.get_run_env_vars()
     env_vars.update(get_databricks_env_vars(mlflow.get_tracking_uri()))
     mlflow_run_subprocess = _run_mlflow_run_cmd(mlflow_run_arr, env_vars)
-    run_id = run_environment.run_id if run_environment else os.environ[_RUN_ID_ENV_VAR]
-    return LocalSubmittedRun(run_id, mlflow_run_subprocess)
+    return LocalSubmittedRun(mlflow_run_subprocess)
 
 
 def _build_mlflow_run_cmd(
-    uri, entry_point, run_environment, use_conda, storage_dir, run_id, parameters
+    uri, entry_point, run_environment, use_conda, storage_dir, parameters
 ):
     """
     Build and return an array containing an ``mlflow run`` command that can be invoked to locally
     run the project at the specified URI.
     """
-    mlflow_run_arr = ["mlflow", "run", uri, "-e", entry_point, "--run-id", run_id]
+    mlflow_run_arr = ["mlflow", "run", uri, "-e", entry_point]
     if run_environment is not None:
         mlflow_run_arr = run_environment.add_run_args(mlflow_run_arr)
     if storage_dir is not None:
@@ -187,7 +176,7 @@ def _run_entry_point(command, run_environment):
     env = os.environ.copy()
     env.update(run_environment.get_run_env_vars())
     env.update(get_databricks_env_vars(tracking_uri=mlflow.get_tracking_uri()))
-    _logger.info("=== Running command '%s' in run with ID '%s' === ", command, run_environment.run_id)
+    _logger.info("=== Running command '%s' === ", command)
     # in case os name is not 'nt', we are not running on windows. It introduces
     # bash command otherwise.
     if os.name != "nt":
@@ -195,4 +184,4 @@ def _run_entry_point(command, run_environment):
     else:
         # process = subprocess.Popen(command, close_fds=True, cwd=work_dir, env=env)
         process = subprocess.Popen(["cmd", "/c", command], close_fds=True, cwd=work_dir, env=env)
-    return LocalSubmittedRun(run_environment.run_id, process)
+    return LocalSubmittedRun(process)

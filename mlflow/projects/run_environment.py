@@ -4,13 +4,10 @@ from mlflow import tracking
 
 class RunEnvironment(ABC):
 
-    def __init__(self, work_dir, project, active_run, backend_config):
+    def __init__(self, work_dir, project, backend_config):
         self._project = project
         self.work_dir = work_dir
         self._project = project
-        self._active_run = active_run
-        self.run_id = active_run.info.run_id
-        self.experiment_id = active_run.info.experiment_id
         self._backend_config = backend_config
 
     def get_run_env_vars(self):
@@ -19,9 +16,7 @@ class RunEnvironment(ABC):
         to run MLflow projects.
         """
         return {
-            tracking._RUN_ID_ENV_VAR: self.run_id,
-            tracking._TRACKING_URI_ENV_VAR: tracking.get_tracking_uri(),
-            tracking._EXPERIMENT_ID_ENV_VAR: str(self.experiment_id),
+            tracking._TRACKING_URI_ENV_VAR: tracking.get_tracking_uri()
         }
 
     @abstractmethod

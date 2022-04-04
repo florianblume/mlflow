@@ -114,13 +114,6 @@ def cli():
     "MLflow downloads artifacts from distributed URIs passed to parameters of "
     "type 'path' to subdirectories of storage_dir.",
 )
-@click.option(
-    "--run-id",
-    metavar="RUN_ID",
-    help="If specified, the given run ID will be used instead of creating a new run. "
-    "Note: this argument is used internally by the MLflow project APIs "
-    "and should not be specified.",
-)
 def run(
     uri,
     entry_point,
@@ -132,8 +125,7 @@ def run(
     backend,
     backend_config,
     no_conda,
-    storage_dir,
-    run_id,
+    storage_dir
 ):
     """
     Run an MLflow project from the given URI.
@@ -178,8 +170,7 @@ def run(
             backend_config=backend_config,
             use_conda=(not no_conda),
             storage_dir=storage_dir,
-            synchronous=backend in ("local", "kubernetes") or backend is None,
-            run_id=run_id,
+            synchronous=backend in ("local", "kubernetes") or backend is None
         )
     except projects.ExecutionException as e:
         _logger.error("=== %s ===", e)

@@ -69,7 +69,6 @@ class DockerRunEnvironment(RunEnvironment):
         Build a docker image containing the project in `work_dir`, using the base image.
         """
         self.base_image = self._project.docker_env.get("image")
-        tracking.MlflowClient().set_tag(self.run_id, MLFLOW_DOCKER_IMAGE_ID, self.base_image)
         
         # NOTE: We skip building the new image and adding the source code as a
         # new layer since that creates confusion and we do something similar
@@ -209,13 +208,7 @@ class DockerRunEnvironment(RunEnvironment):
         return cmds, env_vars
 
     def _get_artifact_storage_cmd_and_envs(self):
-        artifact_uri = self._active_run.info.artifact_uri
-        artifact_repo = artifact_storage.get_artifact_repository(artifact_uri)
-        _get_cmd_and_envs = artifact_storage._artifact_storages.get(type(artifact_repo))
-        if _get_cmd_and_envs is not None:
-            return _get_cmd_and_envs(artifact_repo)
-        else:
-            return [], {}
+        return [], {}
 
     def add_run_args(self, run_args):
         singularity_args = self._backend_config[PROJECT_DOCKER_ARGS]
