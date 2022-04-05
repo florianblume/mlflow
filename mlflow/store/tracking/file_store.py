@@ -5,6 +5,13 @@ import sys
 import shutil
 
 import uuid
+import random
+from animalid.random_id import (
+    FIRST_ADJECTIVES,
+    SECOND_ADJECTIVES,
+    generate_animal_id,
+    animals
+)
 
 from mlflow.entities import (
     Experiment,
@@ -495,7 +502,27 @@ class FileStore(AbstractStore):
                 "Could not create run under non-active experiment with ID " "%s." % experiment_id,
                 databricks_pb2.INVALID_STATE,
             )
-        run_uuid = uuid.uuid4().hex
+        run_name = None
+        for tag in tags:
+            if tag.key == 'mlflow.runName':
+                run_name = tag.value
+                break
+        first_idx = random.SystemRandom().randint(0, len(FIRST_ADJECTIVES) - 1)
+        animal_idx = random.SystemRandom().randint(0, len(animals) - 1)
+        if run_name:
+            run_uuid =\
+                run_name                     + '-' +\
+                FIRST_ADJECTIVES[first_idx]  + '_' +\
+                animals[animal_idx]
+            #uuid.uuid4().hex
+        else:
+            second_idx = random.SystemRandom().randint(
+                0, len(SECOND_ADJECTIVES) - 1)
+            run_uuid =\
+                FIRST_ADJECTIVES[first_idx]    + '_' +\
+                SECOND_ADJECTIVES[second_idx]  + '_' +\
+                animals[animal_idx]
+            
         artifact_uri = self._get_artifact_dir(experiment_id, run_uuid)
         run_info = RunInfo(
             run_uuid=run_uuid,

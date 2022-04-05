@@ -100,8 +100,6 @@ class SingularityRunEnvironment(RunEnvironment):
             _logger.info(f'Final image does not exist locally. Pulling {base_image}...')
             Client.pull(base_image, pull_folder=build_dir, name=final_image)
 
-        tracking.MlflowClient().set_tag(self.run_id, MLFLOW_SINGULARITY_IMAGE_URI, image_uri)
-        tracking.MlflowClient().set_tag(self.run_id, MLFLOW_SINGULARITY_IMAGE_ID, image_uri)
         self._image = final_image
 
     def _get_singularity_image_uri(self):
