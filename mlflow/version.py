@@ -2,7 +2,7 @@
 import re
 
 
-VERSION = "blume-v1.1"
+VERSION = "blume-v1.2"
 
 
 def is_release_version():
