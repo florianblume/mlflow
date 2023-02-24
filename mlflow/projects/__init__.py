@@ -316,10 +316,6 @@ def _wait_for(submitted_run_obj):
     except KeyboardInterrupt:
         _logger.error("=== Run interrupted, cancelling run ===")
         submitted_run_obj.cancel()
-        if 'torch' in sys.modules:
-            import torch
-            # Clear GPU cache, otherwise some memory stays in use on the GPU
-            torch.cuda.empty_cache()
         raise
 
 

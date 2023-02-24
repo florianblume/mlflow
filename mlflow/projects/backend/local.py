@@ -180,7 +180,9 @@ def _run_entry_point(command, run_environment):
     # in case os name is not 'nt', we are not running on windows. It introduces
     # bash command otherwise.
     if os.name != "nt":
-        process = subprocess.Popen(["bash", "-c", command], close_fds=True, cwd=run_environment.work_dir, env=env)
+        process = subprocess.Popen(
+            ["bash", "-c", command], close_fds=True,
+            cwd=run_environment.work_dir, env=env)
     else:
         # process = subprocess.Popen(command, close_fds=True, cwd=work_dir, env=env)
         process = subprocess.Popen(["cmd", "/c", command], close_fds=True, cwd=work_dir, env=env)

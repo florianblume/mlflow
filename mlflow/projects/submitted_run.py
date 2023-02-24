@@ -3,6 +3,7 @@ from abc import abstractmethod
 import os
 import signal
 import logging
+import subprocess
 
 from mlflow.entities import RunStatus
 
@@ -77,9 +78,9 @@ class LocalSubmittedRun(SubmittedRun):
             # group, otherwise just kill the child
             try:
                 if self.command_proc.pid == os.getpgid(self.command_proc.pid):
-                    os.killpg(self.command_proc.pid, signal.SIGTERM)
+                    os.killpg(self.command_proc.pid, signal.SIGKILL)
                 else:
-                    self.command_proc.terminate()
+                    self.command_proc.kill()
             except OSError:
                 # The child process may have exited before we attempted to terminate it, so we
                 # ignore OSErrors raised during child process termination
