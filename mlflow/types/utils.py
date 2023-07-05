@@ -229,7 +229,7 @@ def _infer_pandas_column(col: pd.Series) -> DataType:
             return DataType.string
         else:
             raise MlflowException(
-                "Unable to map 'object' type to MLflow DataType. np.object can"
+                "Unable to map 'object' type to MLflow DataType. object can"
                 "be mapped iff all values have identical data type which is one "
                 "of (string, (bytes or byterray),  int, float)."
             )
