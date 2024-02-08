@@ -329,7 +329,7 @@ class FileStore(AbstractStore):
             for e in self.list_experiments(ViewType.ALL)
             if e.experiment_id.isdigit()
         ]
-        experiment_id = max(experiments_ids) + 1 if experiments_ids else 0
+        experiment_id = name if experiments_ids else 0
         return self._create_experiment_with_id(name, str(experiment_id), artifact_location, tags)
 
     def _has_experiment(self, experiment_id):
